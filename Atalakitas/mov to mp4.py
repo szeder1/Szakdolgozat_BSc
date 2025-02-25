@@ -35,14 +35,14 @@ if not cap.isOpened():
 
 frame_rate = 3
 frame_count = 0
-saved_frames = 0  # Folyamatos számláló
+saved_frames = 0
 
 while cap.isOpened():
     ret, frame = cap.read()
     if not ret:
         break
 
-    if frame_count % frame_rate == 0:  # Minden 3. képkocka mentése
+    if frame_count % frame_rate == 0:
         saved_frames += 1
         frame_name = os.path.join(output_folder, f"frame_{saved_frames}.png")
         if cv2.imwrite(frame_name, frame):
@@ -51,7 +51,7 @@ while cap.isOpened():
             print(f"Hiba a mentésnél: {frame_name}")
         #time.sleep(0.5)
 
-    frame_count += 1  # Képkocka számláló minden ciklusban nő
+    frame_count += 1
 
 cap.release()
 print(f"Képkockák kivágása kész. Összesen {saved_frames} képkocka lett mentve.")
