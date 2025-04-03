@@ -29,7 +29,7 @@
     width=2,
     depth=32
 }};
-\node at ($(conv1-north)+(0,1.6)$) {\textbf{Conv1}};
+\node at ($(conv1-north)+(0.2,2.0)$) {\textbf{Conv1}};
 
 % Pool1
 \pic[shift={(1.6,0,0)}] at (conv1-east) {Box={
@@ -41,7 +41,7 @@
     width=1,
     depth=28
 }};
-\node at ($(pool1-north)+(0,1.6)$) {\textbf{MaxPooling}};
+\node at ($(pool1-north)+(0.6,2.0)$) {\textbf{MaxPooling}};
 
 % Conv2
 \pic[shift={(2.0,0,0)}] at (pool1-east) {RightBandedBox={
@@ -53,7 +53,7 @@
     width=3,
     depth=28
 }};
-\node at ($(conv2-north)+(0,1.6)$) {\textbf{Conv2}};
+\node at ($(conv2-north)+(0.4,1.8)$) {\textbf{Conv2}};
 
 % Pool2
 \pic[shift={(1.6,0,0)}] at (conv2-east) {Box={
@@ -65,7 +65,7 @@
     width=1,
     depth=20
 }};
-\node at ($(pool2-north)+(0,1.6)$) {\textbf{MaxPooling}};
+\node at ($(pool2-north)+(0.6,2.2)$) {\textbf{MaxPooling}};
 
 % Conv3
 \pic[shift={(2.0,0,0)}] at (pool2-east) {RightBandedBox={
@@ -77,7 +77,7 @@
     width=4,
     depth=20
 }};
-\node at ($(conv3-north)+(0,1.6)$) {\textbf{Conv3}};
+\node at ($(conv3-north)+(0.2,1.6)$) {\textbf{Conv3}};
 
 % Pool3
 \pic[shift={(1.6,0,0)}] at (conv3-east) {Box={
@@ -89,7 +89,7 @@
     width=1,
     depth=14
 }};
-\node at ($(pool3-north)+(0,1.2)$) {\textbf{MaxPooling}};
+\node at ($(pool3-north)+(0.4,1.6)$) {\textbf{MaxPooling}};
 
 % Blokkdiagram részek
 \node[block, right=2.2cm of pool3-east] (flatten) {\textbf{Flatten}\\\normalsize 128×28×28 → 100352};
