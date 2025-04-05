@@ -6,10 +6,11 @@ import numpy as np
 from facenet_pytorch import MTCNN
 import torch.nn as nn
 import torch.nn.functional as F
+import time
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Transzformáció
+# Teszt transzformáció
 transform_test = transforms.Compose([
     transforms.Grayscale(num_output_channels=1),
     transforms.Resize((224, 224)),
@@ -17,7 +18,7 @@ transform_test = transforms.Compose([
     transforms.Normalize([0.5], [0.5])
 ])
 
-# CNN model
+# CNN modell
 class EyeCNN(nn.Module):
     def __init__(self):
         super(EyeCNN, self).__init__()
@@ -39,17 +40,23 @@ class EyeCNN(nn.Module):
         x = self.fc2(x)
         return x
 
-# Betöltés mentett súlyokkal
+# Modell betöltése
 model = EyeCNN().to(device)
-state_dict = torch.load("test3cnn.pth", map_location=device)
+state_dict = torch.load("test6cnn.pth", map_location=device)
 model.load_state_dict(state_dict)
 model.eval()
 
-# MTCNN arc detektálásra
+# Arc- és szemdetektor
 mtcnn = MTCNN(keep_all=True, device=device)
 
-# Kamera megnyitása
+# Paraméterek
+window_duration = 30 
+closed_threshold = 0.4 
+total_closed_time = 0.0
+window_start_time = time.time()
+
 cap = cv2.VideoCapture(0)
+
 while True:
     ret, frame = cap.read()
     if not ret:
@@ -58,21 +65,21 @@ while True:
     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     boxes, probs, landmarks = mtcnn.detect(frame_rgb, landmarks=True)
 
-    overall_label = "No face"
+    overall_label = "Monitoring"
     text_color = (255, 255, 255)
-    box_color = (255, 255, 255)
 
     prob_left = 0.0
     prob_right = 0.0
-    box_left = (0, 0, 0, 0)
-    box_right = (0, 0, 0, 0)
+
+    current_time = time.time()
+    frame_closed = False
 
     if landmarks is not None:
         pts = landmarks[0]
         left_eye, right_eye = pts[0], pts[1]
 
         eye_dist = np.linalg.norm(left_eye - right_eye)
-        roi_size = int(eye_dist * 0.7) # arányos ROI
+        roi_size = int(eye_dist * 0.7)
         roi_size = max(20, min(roi_size, 100))
 
         def get_eye_roi(center, frame, roi_size):
@@ -84,23 +91,18 @@ while True:
             y1 = max(0, y1)
             x2 = min(frame.shape[1], x2)
             y2 = min(frame.shape[0], y2)
-            return frame[y1:y2, x1:x2], (x1, y1, x2, y2)
-        
-        # Kivágás
-        roi_left, box_left = get_eye_roi(left_eye, frame, roi_size)
-        roi_right, box_right = get_eye_roi(right_eye, frame, roi_size)
+            return frame[y1:y2, x1:x2]
+
+        roi_left = get_eye_roi(left_eye, frame, roi_size)
+        roi_right = get_eye_roi(right_eye, frame, roi_size)
 
         if roi_left.size != 0 and roi_right.size != 0:
-
-            # Szürkeárnyalatra konvertálás
             roi_left_gray = cv2.cvtColor(roi_left, cv2.COLOR_BGR2GRAY)
             roi_right_gray = cv2.cvtColor(roi_right, cv2.COLOR_BGR2GRAY)
 
-            # PIL formátumra alakítás
             roi_left_pil = Image.fromarray(roi_left_gray)
             roi_right_pil = Image.fromarray(roi_right_gray)
 
-            # Transzformáció alkalmazása
             input_left = transform_test(roi_left_pil).unsqueeze(0).to(device)
             input_right = transform_test(roi_right_pil).unsqueeze(0).to(device)
 
@@ -109,54 +111,48 @@ while True:
                 output_right = model(input_right)
                 prob_left = torch.sigmoid(output_left).item()
                 prob_right = torch.sigmoid(output_right).item()
-                pred_left = 1 if prob_left > 0.5 else 0
-                pred_right = 1 if prob_right > 0.5 else 0
 
-            # Eredmény 
-            if prob_left > 0.7 and prob_right > 0.7:
-                overall_label = "Open"
-                text_color = (87, 140, 79)
-                box_color = (180, 153, 72)
+            closed = (prob_left < 0.5) and (prob_right < 0.5)
+            frame_closed = closed
 
-            elif prob_left < 0.3 and prob_right < 0.3:
-                overall_label = "Closed"
-                text_color = (26, 26, 163)
-                box_color = (180, 153, 72)
+    # Időalapú PERCLOS számítás
+    elapsed_time = current_time - window_start_time
 
-            else:
-                overall_label = "Uncertain"
-                text_color = (85, 163, 227)
-                box_color = (180, 153, 72)
+    if frame_closed:
+        total_closed_time += 1/30  # feltételezve kb. 30 FPS kamera
 
-            # Keretek
-            cv2.rectangle(frame, (box_left[0], box_left[1]), (box_left[2], box_left[3]), box_color, 2)
-            cv2.rectangle(frame, (box_right[0], box_right[1]), (box_right[2], box_right[3]), box_color, 2)
+    if elapsed_time >= window_duration:
+        perclos_value = total_closed_time / elapsed_time
 
-            # Valószínűségek
-            cv2.putText(frame, f"L:{prob_left:.2f} R:{prob_right:.2f}", (50, 90),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1)
+        if perclos_value > closed_threshold:
+            overall_label = "Alert"
+            text_color = (0, 0, 255)
+        
+        # Ablak újraindítása
+        total_closed_time = 0.0
+        window_start_time = current_time
 
-    cv2.putText(frame, overall_label, (50, 50),
-                cv2.FONT_HERSHEY_SIMPLEX, 1, text_color, 2)
+    else:
+        # Folyamatosan is megjelenítjük a PERCLOS-t
+        perclos_value = total_closed_time / elapsed_time if elapsed_time > 0 else 0
 
-    # Megjelenítés
+    # Képernyőre rajzolás
     frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
     frame_display = cv2.cvtColor(frame_gray, cv2.COLOR_GRAY2BGR)
 
+    # Állapot kiírás
     cv2.putText(frame_display, overall_label, (50, 50),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, text_color, 2)
 
-    
-    if landmarks is not None:
-        cv2.putText(frame_display, f"L:{prob_left:.2f} R:{prob_right:.2f}", (50, 90),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1)
+    # Bal és jobb szem valószínűségek
+    cv2.putText(frame_display, f"L: {prob_left:.2f}   R: {prob_right:.2f}", (50, 90),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
-        cv2.rectangle(frame_display, (box_left[0], box_left[1]), (box_left[2], box_left[3]), box_color, 2)
-        cv2.rectangle(frame_display, (box_right[0], box_right[1]), (box_right[2], box_right[3]), box_color, 2)
+    # PERCLOS érték
+    cv2.putText(frame_display, f"PERCLOS: {perclos_value*100:.1f} %", (50, 130),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
-    cv2.imshow("Video Test", frame_display)
-
+    cv2.imshow("Fatigue Monitoring", frame_display)
 
     if cv2.waitKey(1) & 0xFF == ord("q"):
         break
