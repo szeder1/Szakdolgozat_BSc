@@ -1,1 +1,8 @@
-# Szakdolgozat
+# Fáradtság felismerése neurális hálózatokkal - BSc
+
+
+
+
+
+
+
