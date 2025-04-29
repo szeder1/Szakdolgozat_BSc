@@ -1,4 +1,4 @@
-# Fáradtság felismerése neurális hálózatokkal - BSc
+# Fáradtság felismerése neurális hálózatokkal - BSc - 2025
 
 ## Felhasznált adathalmazok 
 
